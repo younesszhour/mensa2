@@ -1,0 +1,36 @@
+name: Update Mensa Plan
+
+on:
+  schedule:
+    # Jeden Sonntag um 00:05 UTC (entspricht 01:05 oder 02:05 DE, sicher für Montag)
+    - cron: '5 0 * * 0'
+  workflow_dispatch: # Erlaubt manuellen Start zum Testen
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Mensa Parser
+        run: |
+          python mensa_parser.py
+
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "Automatisches Update: Speiseplan"
+          file_pattern: "*.png"
