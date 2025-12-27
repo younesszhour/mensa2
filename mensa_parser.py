@@ -1,18 +1,26 @@
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
-import datetime
 import os
 import re
 
-# --- KONFIGURATION (Landscape, High-Res, Folder) ---
+# --- KONFIGURATION (Kindle Paperwhite 7) ---
 MENSA_URL = "https://www.studierendenwerk-kassel.de/speiseplaene/zentralmensa-arnold-bode-strasse"
-OUTPUT_DIR = "images"  # WICHTIG: Unterordner
+OUTPUT_DIR = "images"
 FONT_PATH = "Futura.ttc" 
+
+# AUFLÖSUNG & LAYOUT
 IMG_WIDTH = 1448
 IMG_HEIGHT = 1072
-FONT_SIZE_HEADLINE = 65
-FONT_SIZE_TEXT = 42
+
+FONT_SIZE_HEADER_MAIN = 60
+FONT_SIZE_LABEL = 35        
+FONT_SIZE_TEXT = 52         
+LINE_SPACING = 12           
+
+START_Y = 160
+MIN_PADDING = 20
+BOTTOM_MARGIN = 90  # 1.5 Zeilen Abstand zum Boden
 
 DAYS_MAPPING = {
     "Montag": "montag.png",
@@ -29,47 +37,88 @@ def get_font(size):
     except IOError:
         return ImageFont.load_default()
 
+def calculate_wrapped_lines(text, font, max_width):
+    words = text.split()
+    lines = []
+    current_line = ""
+    for word in words:
+        test_line = current_line + word + " "
+        bbox = font.getbbox(test_line)
+        width = bbox[2] - bbox[0]
+        if width < max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word + " "
+    lines.append(current_line)
+    return lines
+
 def create_image(day_name, dishes, filename):
     img = Image.new('L', (IMG_WIDTH, IMG_HEIGHT), 255)
     draw = ImageDraw.Draw(img)
-    font_head = get_font(FONT_SIZE_HEADLINE)
+    
+    font_main = get_font(FONT_SIZE_HEADER_MAIN)
+    font_label = get_font(FONT_SIZE_LABEL)
     font_text = get_font(FONT_SIZE_TEXT)
 
-    # Header
-    draw.text((50, 40), f"Mensa: {day_name}", font=font_head, fill=0)
-    draw.line((50, 130, IMG_WIDTH - 50, 130), fill=0, width=5)
+    # --- HEADER ---
+    # Wir fügen den Wochentag dezent hinzu, damit man weiß, welcher Tag es ist
+    header_text = f"Zentralmensa {day_name}"
+    draw.text((50, 40), header_text, font=font_main, fill=0)
+    draw.line((50, 120, IMG_WIDTH - 50, 120), fill=0, width=6)
     
-    y_pos = 160
-    if not dishes:
-        draw.text((50, y_pos), "Keine Daten / Geschlossen", font=font_text, fill=0)
+    # --- BERECHNUNG DES PLATZES ---
+    # Nur die ersten 3 Gerichte
+    dishes_to_draw = dishes[:3]
+    
+    if not dishes_to_draw:
+        # Fallback: Geschlossen / Keine Daten
+        draw.text((50, START_Y), "Keine Daten oder geschlossen.", font=font_text, fill=0)
+        img.save(os.path.join(OUTPUT_DIR, filename))
+        return
+
+    block_heights = []
+    wrapped_texts = [] 
+
+    for dish in dishes_to_draw:
+        h = FONT_SIZE_LABEL + 10 # Label Höhe
+        
+        lines = calculate_wrapped_lines(dish['meal'], font_text, IMG_WIDTH - 100)
+        wrapped_texts.append(lines)
+        
+        text_h = len(lines) * FONT_SIZE_TEXT + (len(lines)-1) * LINE_SPACING
+        h += text_h
+        block_heights.append(h)
+
+    total_content_height = sum(block_heights)
+    available_height = IMG_HEIGHT - START_Y - BOTTOM_MARGIN
+    free_space = available_height - total_content_height
+    
+    # Dynamischer Abstand
+    if len(dishes_to_draw) > 1:
+        dynamic_gap = free_space / (len(dishes_to_draw) - 1)
+        dynamic_gap = max(MIN_PADDING, dynamic_gap)
     else:
-        for dish in dishes:
-            cat_text = f"[{dish['category']}]"
-            draw.text((50, y_pos), cat_text, font=font_text, fill=0)
-            
-            if dish['price']:
-                price_bbox = draw.textbbox((0, 0), dish['price'], font=font_text)
-                price_width = price_bbox[2] - price_bbox[0]
-                draw.text((IMG_WIDTH - 50 - price_width, y_pos), dish['price'], font=font_text, fill=0)
-            
-            y_pos += 60
-            
-            full_text = dish['meal']
-            words = full_text.split()
-            line = ""
-            for word in words:
-                test_line = line + word + " "
-                if len(test_line) * 22 < (IMG_WIDTH - 100):
-                    line = test_line
-                else:
-                    draw.text((80, y_pos), line, font=font_text, fill=0)
-                    y_pos += 55
-                    line = word + " "
-            draw.text((80, y_pos), line, font=font_text, fill=0)
-            y_pos += 100 
-            
-            if y_pos > IMG_HEIGHT - 60:
-                break 
+        dynamic_gap = MIN_PADDING
+
+    # --- ZEICHNEN ---
+    current_y = START_Y
+    
+    for i, dish in enumerate(dishes_to_draw):
+        # Label "Essen X"
+        label = f"Essen {i+1}"
+        draw.text((50, current_y), label, font=font_label, fill=0)
+        current_y += (FONT_SIZE_LABEL + 10)
+        
+        # Text
+        lines = wrapped_texts[i]
+        for line in lines:
+            draw.text((50, current_y), line, font=font_text, fill=0)
+            current_y += (FONT_SIZE_TEXT + LINE_SPACING)
+        
+        # Abstand
+        if i < len(dishes_to_draw) - 1:
+            current_y += dynamic_gap
 
     path = os.path.join(OUTPUT_DIR, filename)
     img.save(path)
@@ -109,22 +158,18 @@ def main():
             if not rows: rows = content.select("tr")
 
             for row in rows:
-                cat_el = row.select_one(".speiseplan__offer-type")
                 meal_el = row.select_one(".speiseplan__offer-description") 
-                price_el = row.select_one(".speiseplan__offer-price")
+                # Category ignorieren wir, Price auch
+                cat_el = row.select_one(".speiseplan__offer-type")
+                category = cat_el.get_text(strip=True) if cat_el else ""
 
-                category = cat_el.get_text(strip=True) if cat_el else "Gericht"
-                meal = meal_el.get_text(strip=True) if meal_el else ""
-                price = price_el.get_text(strip=True) if price_el else ""
-
-                if "Salat" in category or "Salat" in meal: continue
-                meal_clean = re.sub(r'\s*\(\s*\d+(?:\s*,\s*\d+)*\s*\)', '', meal)
-
-                week_data[current_day].append({
-                    "category": category,
-                    "meal": meal_clean,
-                    "price": price
-                })
+                if "Salat" in category: continue # Salate ignorieren
+                
+                if meal_el:
+                    meal = meal_el.get_text(strip=True)
+                    # Zusatzstoffe (1,2,3) entfernen
+                    meal_clean = re.sub(r'\s*\(\s*\d+(?:\s*,\s*\d+)*\s*\)', '', meal)
+                    week_data[current_day].append({ "meal": meal_clean })
 
     for day_name, filename in DAYS_MAPPING.items():
         create_image(day_name, week_data.get(day_name, []), filename)
