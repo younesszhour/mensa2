@@ -2,9 +2,8 @@ name: Update Mensa Plan
 
 on:
   schedule:
-    # Jeden Sonntag um 00:05 UTC (entspricht 01:05 oder 02:05 DE, sicher für Montag)
     - cron: '5 0 * * 0'
-  workflow_dispatch: # Erlaubt manuellen Start zum Testen
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -32,5 +31,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: "Automatisches Update: Speiseplan"
+          commit_message: "Update Landscape Format"
           file_pattern: "*.png"
