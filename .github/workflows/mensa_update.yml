@@ -2,8 +2,9 @@ name: Update Mensa Plan
 
 on:
   schedule:
-    # 00:00 UTC am Sonntag (0)
-    - cron: '0 0 * * 0'
+    # 00:17 UTC am Sonntag (Sonntag 01:17 DE Winterzeit / 02:17 DE Sommerzeit)
+    # Krumme Zeit gegen GitHub-Queue-Verzögerung
+    - cron: '17 0 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -32,5 +33,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: "Update Schedule to Sunday 00:00 UTC"
+          commit_message: "Update Weekly Menu Images"
           file_pattern: "images/*.png"
