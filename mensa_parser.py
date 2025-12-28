@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import re
 
-# --- KONFIGURATION (Kindle Paperwhite 7) ---
+# --- KONFIGURATION ---
 MENSA_URL = "https://www.studierendenwerk-kassel.de/speiseplaene/zentralmensa-arnold-bode-strasse"
 OUTPUT_DIR = "images"
 FONT_PATH = "Futura.ttc"
@@ -71,7 +71,8 @@ def create_image(day_name, dishes, filename):
     
     if not dishes_to_draw:
         draw.text((50, START_Y), "Keine Daten oder geschlossen.", font=font_text, fill=0)
-        img.save(os.path.join(OUTPUT_DIR, filename))
+        path = os.path.join(OUTPUT_DIR, filename)
+        img.save(path)
         return
 
     block_heights = []
@@ -79,10 +80,8 @@ def create_image(day_name, dishes, filename):
 
     for dish in dishes_to_draw:
         h = FONT_SIZE_LABEL + 10 
-        
         lines = calculate_wrapped_lines(dish['meal'], font_text, IMG_WIDTH - 100)
         wrapped_texts.append(lines)
-        
         text_h = len(lines) * FONT_SIZE_TEXT + (len(lines)-1) * LINE_SPACING
         h += text_h
         block_heights.append(h)
@@ -118,26 +117,26 @@ def create_image(day_name, dishes, filename):
     print(f"Erstellt: {path}")
 
 def create_weekend_image():
-    """Erstellt das statische Bild für das Wochenende"""
     filename = "wochenende.png"
+    path = os.path.join(OUTPUT_DIR, filename)
+    
+    # NEU: Prüfen, ob Datei schon existiert
+    if os.path.exists(path):
+        print(f"Info: {filename} existiert bereits. Überspringe Generierung.")
+        return
+
     img = Image.new('L', (IMG_WIDTH, IMG_HEIGHT), 255)
     draw = ImageDraw.Draw(img)
-    
     font_main = get_font(FONT_SIZE_HEADER_MAIN)
-    
     text = "Schönes Wochenende!"
     
-    # Text zentrieren (einfache Methode via bbox)
     bbox = font_main.getbbox(text)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
-    
     x = (IMG_WIDTH - text_width) / 2
     y = (IMG_HEIGHT - text_height) / 2
     
     draw.text((x, y), text, font=font_main, fill=0)
-    
-    path = os.path.join(OUTPUT_DIR, filename)
     img.save(path)
     print(f"Erstellt: {path}")
 
@@ -151,8 +150,6 @@ def main():
         response.raise_for_status()
     except Exception as e:
         print(f"Fehler: {e}")
-        # Wir machen trotzdem weiter, um ggf. das Wochenendbild zu erzeugen
-        # oder alte Bilder zu überschreiben, falls nötig.
     else:
         soup = BeautifulSoup(response.text, 'html.parser')
         week_data = {k: [] for k in DAYS_MAPPING.keys()}
@@ -162,7 +159,6 @@ def main():
             btn = item.select_one(".accordion__button")
             if not btn: continue
             header_text = btn.get_text(strip=True)
-            
             current_day = None
             for day in DAYS_MAPPING.keys():
                 if day in header_text:
@@ -179,19 +175,15 @@ def main():
                     meal_el = row.select_one(".speiseplan__offer-description") 
                     cat_el = row.select_one(".speiseplan__offer-type")
                     category = cat_el.get_text(strip=True) if cat_el else ""
-
                     if "Salat" in category: continue 
-                    
                     if meal_el:
                         meal = meal_el.get_text(strip=True)
                         meal_clean = re.sub(r'\s*\(\s*\d+(?:\s*,\s*\d+)*\s*\)', '', meal)
                         week_data[current_day].append({ "meal": meal_clean })
 
-        # Bilder für Mo-Sa erstellen
         for day_name, filename in DAYS_MAPPING.items():
             create_image(day_name, week_data.get(day_name, []), filename)
 
-    # Bild für Wochenende erstellen
     create_weekend_image()
 
 if __name__ == "__main__":
