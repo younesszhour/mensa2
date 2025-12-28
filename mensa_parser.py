@@ -9,7 +9,7 @@ MENSA_URL = "https://www.studierendenwerk-kassel.de/speiseplaene/zentralmensa-ar
 OUTPUT_DIR = "images"
 FONT_PATH = "Futura.ttc"
 
-# AUFLÖSUNG & LAYOUT
+# AUFLÖSUNG & LAYOUT (Final)
 IMG_WIDTH = 1448
 IMG_HEIGHT = 1072
 
@@ -18,9 +18,11 @@ FONT_SIZE_LABEL = 35
 FONT_SIZE_TEXT = 52
 LINE_SPACING = 12
 
-START_Y = 160
-MIN_PADDING = 20
-BOTTOM_MARGIN = 90
+# Layout-Konfiguration (Final)
+DRAWING_AREA_TOP = 150 
+DRAWING_AREA_BOTTOM = IMG_HEIGHT - 100
+MAX_GAP = 90 
+MIN_GAP = 15 
 
 DAYS_MAPPING = {
     "Montag": "montag.png",
@@ -66,13 +68,13 @@ def create_image(day_name, dishes, filename):
     draw.text((50, 40), header_text, font=font_main, fill=0)
     draw.line((50, 120, IMG_WIDTH - 50, 120), fill=0, width=6)
     
-    # --- BERECHNUNG DES PLATZES ---
+    # --- DATEN VORBEREITEN ---
     dishes_to_draw = dishes[:3]
+    num_dishes = len(dishes_to_draw)
     
-    if not dishes_to_draw:
-        draw.text((50, START_Y), "Keine Daten oder geschlossen.", font=font_text, fill=0)
-        path = os.path.join(OUTPUT_DIR, filename)
-        img.save(path)
+    if not num_dishes:
+        draw.text((50, 160), "Keine Daten oder geschlossen.", font=font_text, fill=0)
+        img.save(os.path.join(OUTPUT_DIR, filename))
         return
 
     block_heights = []
@@ -86,19 +88,28 @@ def create_image(day_name, dishes, filename):
         h += text_h
         block_heights.append(h)
 
+    # --- LAYOUT LOGIK (Final) ---
     total_content_height = sum(block_heights)
-    available_height = IMG_HEIGHT - START_Y - BOTTOM_MARGIN
-    free_space = available_height - total_content_height
+    num_gaps = num_dishes - 1
+    available_h = DRAWING_AREA_BOTTOM - DRAWING_AREA_TOP
     
-    if len(dishes_to_draw) > 1:
-        dynamic_gap = free_space / (len(dishes_to_draw) - 1)
-        dynamic_gap = max(MIN_PADDING, dynamic_gap)
+    if num_gaps > 0:
+        theoretical_gap = (available_h - total_content_height) / num_gaps
     else:
-        dynamic_gap = MIN_PADDING
+        theoretical_gap = 0
+
+    if theoretical_gap > MAX_GAP:
+        # Genug Platz: Begrenzen auf 90px & Zentrieren
+        used_gap = MAX_GAP
+        final_block_height = total_content_height + (num_gaps * used_gap)
+        start_y = DRAWING_AREA_TOP + (available_h - final_block_height) / 2
+    else:
+        # Wenig Platz: Alles nutzen
+        used_gap = max(MIN_GAP, theoretical_gap)
+        start_y = DRAWING_AREA_TOP
 
     # --- ZEICHNEN ---
-    current_y = START_Y
-    
+    current_y = start_y
     for i, dish in enumerate(dishes_to_draw):
         label = f"Essen {i+1}"
         draw.text((50, current_y), label, font=font_label, fill=0)
@@ -109,8 +120,8 @@ def create_image(day_name, dishes, filename):
             draw.text((50, current_y), line, font=font_text, fill=0)
             current_y += (FONT_SIZE_TEXT + LINE_SPACING)
         
-        if i < len(dishes_to_draw) - 1:
-            current_y += dynamic_gap
+        if i < num_dishes - 1:
+            current_y += used_gap
 
     path = os.path.join(OUTPUT_DIR, filename)
     img.save(path)
@@ -119,10 +130,7 @@ def create_image(day_name, dishes, filename):
 def create_weekend_image():
     filename = "wochenende.png"
     path = os.path.join(OUTPUT_DIR, filename)
-    
-    # NEU: Prüfen, ob Datei schon existiert
     if os.path.exists(path):
-        print(f"Info: {filename} existiert bereits. Überspringe Generierung.")
         return
 
     img = Image.new('L', (IMG_WIDTH, IMG_HEIGHT), 255)
@@ -131,12 +139,10 @@ def create_weekend_image():
     text = "Schönes Wochenende!"
     
     bbox = font_main.getbbox(text)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    x = (IMG_WIDTH - text_width) / 2
-    y = (IMG_HEIGHT - text_height) / 2
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
     
-    draw.text((x, y), text, font=font_main, fill=0)
+    draw.text(((IMG_WIDTH - w)/2, (IMG_HEIGHT - h)/2), text, font=font_main, fill=0)
     img.save(path)
     print(f"Erstellt: {path}")
 
