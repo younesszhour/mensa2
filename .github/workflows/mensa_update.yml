@@ -2,9 +2,9 @@ name: Update Mensa Plan
 
 on:
   schedule:
-    # 00:17 UTC am Sonntag (Sonntag 01:17 DE Winterzeit / 02:17 DE Sommerzeit)
+    # 01:24 UTC jeden Tag (02:24 DE Winterzeit / 03:24 DE Sommerzeit)
     # Krumme Zeit gegen GitHub-Queue-Verzögerung
-    - cron: '17 0 * * 0'
+    - cron: '24 1 * * *'
   workflow_dispatch:
 
 permissions:
