@@ -4,7 +4,7 @@ on:
   schedule:
     # 23:29 UTC jeden Tag (00:29 DE Winterzeit / 01:29 DE Sommerzeit)
     # Krumme Zeit gegen GitHub-Queue-Verzögerung
-    - cron: '29 23 * * *'
+    - cron: '04 2 * * *'
   workflow_dispatch:
 
 permissions:
